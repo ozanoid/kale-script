@@ -15,9 +15,9 @@ USER_AGENTS = [
 def get_random_user_agent():
     return random.choice(USER_AGENTS)
 
-def fetch_html(url):
+def fetch_html(url, use_fake_agent, delay):
     headers = {
-        "User-Agent": get_random_user_agent(),
+        "User-Agent": get_random_user_agent() if use_fake_agent else "Python Requests",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip, deflate, br",
@@ -27,7 +27,7 @@ def fetch_html(url):
     }
     
     try:
-        time.sleep(random.uniform(1, 3))
+        time.sleep(delay / 1000)  # Convert milliseconds to seconds
         
         if "etstur.com" in url:
             headers["Referer"] = "https://www.etstur.com/"
@@ -44,8 +44,8 @@ def fetch_html(url):
     except requests.RequestException as req_err:
         return f"Error fetching HTML: {req_err}"
 
-def analyze_url(url, char_count, search_phrase):
-    html = fetch_html(url)
+def analyze_url(url, char_count, search_phrase, use_fake_agent, delay):
+    html = fetch_html(url, use_fake_agent, delay)
     if html.startswith(("Error", "HTTP error", "Timeout error")):
         return {
             "URL": url,
@@ -71,15 +71,25 @@ urls = st.text_area("Enter URLs (one per line)")
 char_count = st.number_input("Character count to analyze from the end", min_value=1, value=100)
 search_phrase = st.text_input("Search phrase")
 
+# New options
+use_fake_agent = st.checkbox("Use fake user agent", value=True, help="Enable to use random user agents for requests")
+delay = st.number_input("Delay between requests (milliseconds)", min_value=0, value=1000, step=100, help="Time to wait between each URL request")
+
 if st.button("Analyze URLs"):
     url_list = [url.strip() for url in urls.split('\n') if url.strip()]
+    total_urls = len(url_list)
     
     results = []
     progress_bar = st.progress(0)
-    for i, url in enumerate(url_list):
-        result = analyze_url(url, char_count, search_phrase)
+    status_text = st.empty()
+    
+    for i, url in enumerate(url_list, 1):
+        status_text.text(f"Processing URL {i} of {total_urls}: {url}")
+        result = analyze_url(url, char_count, search_phrase, use_fake_agent, delay)
         results.append(result)
-        progress_bar.progress((i + 1) / len(url_list))
+        progress_bar.progress(i / total_urls)
+    
+    status_text.text("Analysis complete!")
     
     df = pd.DataFrame(results)
     
